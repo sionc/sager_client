@@ -10,24 +10,32 @@ import time
 import httplib
 import json
 import logging
+import urllib
 
-# logging setup
-logging.basicConfig(filename='polarmeter-client.log', level=logging.INFO)
+# function found on the net to create nested url encoding, urllib doesn't do
+# that by default, which makes Rails very sad
+def recursive_urlencode(d):
+    def recursion(d, base=None):
+        pairs = []
 
-# default location of the usb-to-serial-port usb device on a linux machine
-device = "/dev/ttyUSB0"
+        for key, value in d.items():
+            if hasattr(value, 'values'):
+                pairs += recursion(value, key)
+            else:
+                new_pair = None
+                if base:
+                    new_pair = "%s[%s]=%s" % (base, urllib.quote(unicode(key)), urllib.quote(unicode(value)))
+                else:
+                    new_pair = "%s=%s" % (urllib.quote(unicode(key)), urllib.quote(unicode(value)))
+                pairs.append(new_pair)
+        return pairs
 
-# known dictionary of sensors to be
-# without this list we would not know the latest state and thus be forced to
-# reset state every x seconds (which is NOT an NOP, it actually makes the
-# Plugwise click)
-# The state will only be forcefully every time the script starts
-sensors = {}
+    return '&'.join(recursion(d))
 
-sleep_time_in_seconds = 5
-
-while True:
-    conn = httplib.HTTPConnection("localhost:3000")
+# Calls out to the website to get a list of all sensors and makes sure their
+# switch status is the same as marked on the site
+def check_switch_status():
+    conn = httplib.HTTPConnection(url)
     conn.request("GET", "/sensors.json")
     r1 = conn.getresponse()
 
@@ -50,6 +58,11 @@ while True:
       # initialize connection to circle
       stick = Stick(device)
       c = Circle(mac, stick)
+      try:
+          # post the kwh reading to the website
+          post_kwh_reading(c)
+      except plugwise.exceptions.TimeoutException:
+          print "Could not get kwh reading from %s", mac
 
       if (mac in sensors and sensors[mac] != enabled) or (mac not in sensors):
 
@@ -67,6 +80,38 @@ while True:
     # we should eventually keep the connection open if there isn't a good
     # reason to shut it down
     conn.close()
+
+def post_kwh_reading(circle):
+    kwh_as_string = str(int(circle.get_power_usage()))
+    headers = {"Content-type": "application/x-www-form-urlencoded"}
+    params = recursive_urlencode({'sensor_reading': {'mac_address': '000D6F0000B81AB9', 'watthours': kwh_as_string}})
+    conn = httplib.HTTPConnection(url)
+    conn.request("POST", "/sensor_readings", params, headers)
+    # at this point, not checking the result of the operation
+    # not much we can do right now if the post doesn't go through
+
+# =====================================================================
+# Script start
+# =====================================================================
+
+# logging setup
+logging.basicConfig(filename='polarmeter-client.log', level=logging.INFO)
+
+# default location of the usb-to-serial-port usb device on a linux machine
+device = "/dev/ttyUSB0"
+url = "localhost:3000"
+
+# known dictionary of sensors to be
+# without this list we would not know the latest state and thus be forced to
+# reset state every x seconds (which is NOT an NOP, it actually makes the
+# Plugwise click)
+# The state will only be forcefully every time the script starts
+sensors = {}
+
+sleep_time_in_seconds = 5
+
+while True:
+    check_switch_status()
 
     # print "Sleeping for 5 seconds"
     logging.debug("Sleeping for %s", sleep_time_in_seconds)
