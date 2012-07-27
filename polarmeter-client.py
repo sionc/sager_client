@@ -98,7 +98,8 @@ def post_kwh_reading(circle):
 logging.basicConfig(filename='polarmeter-client.log', level=logging.INFO)
 
 # default location of the usb-to-serial-port usb device on a linux machine
-device = "/dev/ttyUSB0"
+# device = "/dev/ttyUSB0"
+device = "/dev/tty.usbserial-A700gCpP"
 url = "localhost:3000"
 
 # known dictionary of sensors to be
