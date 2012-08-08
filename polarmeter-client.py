@@ -43,12 +43,21 @@ def check_switch_status():
     data1 = r1.read()
 
     logging.debug(data1)
-
+    
+    # Circles available for demo	
+    registered_sensors = ['000D6F0000B81A41','000D6F0000B81AB9']
+	
     for sensor in json.loads(data1)['sensors']:
 
       # utf8 or ascii won't matter as far as MACs are concerned
       mac = sensor['mac_address'].encode('utf8')
       enabled = sensor['enabled']
+
+      # if it is not a registered sensor then skip this sensor 
+      # because the timeout might cause other sensors to respond
+      # slower
+      if not (mac in registered_sensors):
+          continue
 
       # brute force approach, will change once we have authentication:
       # 1. get all of the sensors known to the system
@@ -79,7 +88,7 @@ def check_switch_status():
 
     # we should eventually keep the connection open if there isn't a good
     # reason to shut it down
-    conn.close()
+    # conn.close()
 
 def post_kwh_reading(circle):
     kwh_as_string = str(int(circle.get_power_usage()))
@@ -100,7 +109,8 @@ logging.basicConfig(filename='polarmeter-client.log', level=logging.INFO)
 # default location of the usb-to-serial-port usb device on a linux machine
 # device = "/dev/ttyUSB0"
 device = "/dev/tty.usbserial-A700gCpP"
-url = "localhost:3000"
+#url = "localhost:3000"
+url = "www.polarmeter.com"
 
 # known dictionary of sensors to be
 # without this list we would not know the latest state and thus be forced to
@@ -109,11 +119,11 @@ url = "localhost:3000"
 # The state will only be forcefully every time the script starts
 sensors = {}
 
-sleep_time_in_seconds = 5
+sleep_time_in_seconds = 0.5
 
 while True:
     check_switch_status()
 
-    # print "Sleeping for 5 seconds"
+    # print "Sleeping for 1 seconds"
     logging.debug("Sleeping for %s", sleep_time_in_seconds)
     time.sleep(sleep_time_in_seconds)
